@@ -1,6 +1,6 @@
-export const CLA = 0x55;
+export const CLA = 0x07;
 export const CHUNK_SIZE = 250;
-export const APP_KEY = "CSM";
+export const APP_KEY = "XAR";
 
 export const INS = {
   GET_VERSION: 0x00,
@@ -44,7 +44,7 @@ const ERROR_DESCRIPTION = {
   0x6a80: "Bad key handle",
   0x6b00: "Invalid P1/P2",
   0x6d00: "Instruction not supported",
-  0x6e00: "Cosmos app does not seem to be open",
+  0x6e00: "XAR app does not seem to be open",
   0x6f00: "Unknown error",
   0x6f01: "Sign/verify error",
 };

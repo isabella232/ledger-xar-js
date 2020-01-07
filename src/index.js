@@ -1,5 +1,5 @@
 /** ******************************************************************************
- *  (c) 2019 ZondaX GmbH
+ *  (c) 2019 Zondax GmbH
  *  (c) 2016-2017 Ledger
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
@@ -32,7 +32,7 @@ import {
   P1_VALUES,
 } from "./common";
 
-export default class CosmosApp {
+export default class XarApp {
   constructor(transport, scrambleKey = APP_KEY) {
     if (!transport) {
       throw new Error("Transport has not been defined");
@@ -221,7 +221,7 @@ export default class CosmosApp {
         case 1:
           return publicKeyv1(this, serializedPath);
         case 2: {
-          const data = Buffer.concat([CosmosApp.serializeHRP("cosmos"), serializedPath]);
+          const data = Buffer.concat([XarApp.serializeHRP("xar"), serializedPath]);
           return publicKeyv2(this, data);
         }
         default:
@@ -236,79 +236,69 @@ export default class CosmosApp {
   }
 
   async getAddressAndPubKey(path, hrp) {
-    try {
-      const serializedPath = await this.serializePath(path);
+    return this.serializePath(path)
+      .then(serializedPath => {
+        const data = Buffer.concat([XarApp.serializeHRP(hrp), serializedPath]);
+        return this.transport
+          .send(CLA, INS.GET_ADDR_SECP256K1, P1_VALUES.ONLY_RETRIEVE, 0, data, [ERROR_CODE.NoError])
+          .then(response => {
+            const errorCodeData = response.slice(-2);
+            const returnCode = errorCodeData[0] * 256 + errorCodeData[1];
 
-      const data = Buffer.concat([CosmosApp.serializeHRP(hrp), serializedPath]);
-      return this.transport
-        .send(CLA, INS.GET_ADDR_SECP256K1, P1_VALUES.ONLY_RETRIEVE, 0, data, [ERROR_CODE.NoError])
-        .then(response => {
-          const errorCodeData = response.slice(-2);
-          const returnCode = errorCodeData[0] * 256 + errorCodeData[1];
+            const compressedPk = Buffer.from(response.slice(0, 33));
+            const bech32Address = Buffer.from(response.slice(33, -2)).toString();
 
-          const compressedPk = Buffer.from(response.slice(0, 33));
-          const bech32Address = Buffer.from(response.slice(33, -2)).toString();
-
-          return {
-            bech32_address: bech32Address,
-            compressed_pk: compressedPk,
-            return_code: returnCode,
-            error_message: errorCodeToString(returnCode),
-          };
-        }, processErrorResponse);
-    } catch (e) {
-      return processErrorResponse(e);
-    }
+            return {
+              bech32_address: bech32Address,
+              compressed_pk: compressedPk,
+              return_code: returnCode,
+              error_message: errorCodeToString(returnCode),
+            };
+          }, processErrorResponse);
+      })
+      .catch(err => processErrorResponse(err));
   }
 
   async showAddressAndPubKey(path, hrp) {
-    try {
-      const serializedPath = await this.serializePath(path);
+    return this.serializePath(path)
+      .then(serializedPath => {
+        const data = Buffer.concat([XarApp.serializeHRP(hrp), serializedPath]);
+        return this.transport
+          .send(CLA, INS.GET_ADDR_SECP256K1, P1_VALUES.SHOW_ADDRESS_IN_DEVICE, 0, data, [ERROR_CODE.NoError])
+          .then(response => {
+            const errorCodeData = response.slice(-2);
+            const returnCode = errorCodeData[0] * 256 + errorCodeData[1];
 
-      const data = Buffer.concat([CosmosApp.serializeHRP(hrp), serializedPath]);
-      return this.transport
-        .send(CLA, INS.GET_ADDR_SECP256K1, P1_VALUES.SHOW_ADDRESS_IN_DEVICE, 0, data, [ERROR_CODE.NoError])
-        .then(response => {
-          const errorCodeData = response.slice(-2);
-          const returnCode = errorCodeData[0] * 256 + errorCodeData[1];
+            const compressedPk = Buffer.from(response.slice(0, 33));
+            const bech32Address = Buffer.from(response.slice(33, -2)).toString();
 
-          const compressedPk = Buffer.from(response.slice(0, 33));
-          const bech32Address = Buffer.from(response.slice(33, -2)).toString();
-
-          return {
-            bech32_address: bech32Address,
-            compressed_pk: compressedPk,
-            return_code: returnCode,
-            error_message: errorCodeToString(returnCode),
-          };
-        }, processErrorResponse);
-    } catch (e) {
-      return processErrorResponse(e);
-    }
+            return {
+              bech32_address: bech32Address,
+              compressed_pk: compressedPk,
+              return_code: returnCode,
+              error_message: errorCodeToString(returnCode),
+            };
+          }, processErrorResponse);
+      })
+      .catch(err => processErrorResponse(err));
   }
 
   async signSendChunk(chunkIdx, chunkNum, chunk) {
-    try {
-      switch (this.versionResponse.major) {
-        case 1:
-          return signSendChunkv1(this, chunkIdx, chunkNum, chunk);
-        case 2:
-          return signSendChunkv2(this, chunkIdx, chunkNum, chunk);
-        default:
-          return {
-            return_code: 0x6400,
-            error_message: "App Version is not supported",
-          };
-      }
-    } catch (e) {
-      return processErrorResponse(e);
+    switch (this.versionResponse.major) {
+      case 1:
+        return signSendChunkv1(this, chunkIdx, chunkNum, chunk);
+      case 2:
+        return signSendChunkv2(this, chunkIdx, chunkNum, chunk);
+      default:
+        return {
+          return_code: 0x6400,
+          error_message: "App Version is not supported",
+        };
     }
   }
 
   async sign(path, message) {
-    try {
-      const chunks = await this.signGetChunks(path, message);
-
+    return this.signGetChunks(path, message).then(chunks => {
       return this.signSendChunk(1, chunks.length, chunks[0], [ERROR_CODE.NoError]).then(async response => {
         let result = {
           return_code: response.return_code,
@@ -331,8 +321,6 @@ export default class CosmosApp {
           signature: result.signature,
         };
       }, processErrorResponse);
-    } catch (e) {
-      return processErrorResponse(e);
-    }
+    }, processErrorResponse);
   }
 }
